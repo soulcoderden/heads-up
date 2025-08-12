@@ -35,27 +35,19 @@
     .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .pill{padding:8px 12px;border-radius:999px;border:1px solid #ffffff24;background:#0b1220;color:var(--muted);font-size:14px}
     .muted{color:var(--muted)}
-    .big{font-size:48px;line-height:1.1;text-align:center;margin:24px 0}
     .word{font-size:52px;line-height:1.12;text-align:center;margin:8px 0 12px;font-weight:800;letter-spacing:.3px}
     .score{font-size:18px}
-    .flex{display:flex;gap:10px;align-items:center}
-    .spread{display:flex;justify-content:space-between;align-items:center}
-    .center{display:flex;justify-content:center;align-items:center}
     .hidden{display:none !important}
     .progress{height:10px;border-radius:999px;background:#ffffff1a;overflow:hidden}
     .progress>i{display:block;height:100%;background:linear-gradient(90deg,#22d3ee,var(--accent-2));width:100%}
-    .kbd{border:1px solid #ffffff33;border-bottom-width:2px;background:#0b1220;border-radius:8px;padding:3px 8px;font-size:13px}
-    .footer{position:fixed;inset:auto 0 0 0;padding:10px 16px;background:linear-gradient( to top, #0b0f17ee, #0b0f1700);backdrop-filter:blur(8px)}
-    .link{color:#93c5fd;text-decoration:none}
 
-    /* New 3-column game layout (Left Skip | Middle info + controls | Right Correct) */
+    /* 3‑column game layout (Left Skip | Middle info + controls | Right Correct) */
     .gameGrid{display:grid;grid-template-columns:1fr minmax(260px,2fr) 1fr;gap:12px;min-height:70vh}
     .touchZone{display:flex;align-items:center;justify-content:center;border:1px dashed #ffffff2a;border-radius:18px;background:#0b1220aa;font-size:28px;font-weight:700;user-select:none;-webkit-user-select:none;touch-action:manipulation}
     .touchZone:active{transform:scale(0.99)}
     .touchZone.skip{border-color:#f59e0b55}
     .touchZone.correct{border-color:#16a34a55}
     .midCol{display:flex;flex-direction:column;gap:10px}
-    .scoreRow{justify-content:center;gap:16px}
   </style>
 </head>
 <body>
@@ -112,7 +104,7 @@ Oscars"></textarea>
       <div class="gameGrid">
         <div id="zoneLeft" class="touchZone skip">Skip</div>
         <div class="midCol">
-          <div class="spread">
+          <div class="row" style="justify-content:space-between;align-items:center">
             <div class="row muted"><span class="pill">Time</span> <b id="timeLeft">60</b>s</div>
             <div class="row score">
               <span>✅ <b id="scoreGood">0</b></span>
@@ -123,7 +115,7 @@ Oscars"></textarea>
 
           <div class="word" id="currentWord">—</div>
 
-          <div class="row center">
+          <div class="row" style="justify-content:center;gap:10px">
             <button id="btnPause" class="ghost">Pause</button>
             <button id="btnEnd" class="ghost">End</button>
             <button id="btnSetup" class="ghost">Setup</button>
@@ -155,7 +147,7 @@ Oscars"></textarea>
     </div>
   </div>
 
-  <div class="footer muted center">
+  <div class="footer muted" style="text-align:center">
     <div>Made for quick custom play. Data stays in your browser.</div>
   </div>
 
@@ -193,20 +185,23 @@ Oscars"></textarea>
     document.body.appendChild(t); setTimeout(()=>t.remove(),2200);
   }
 
+  // ----- Text utilities (fix for invalid RegExp) -----
+  function splitLines(text){
+    // Correct cross-platform newline handling: LF or CRLF
+    return text.split(/\r?\n/);
+  }
+  function normalizeWords(text){
+    return Array.from(new Set(splitLines(text).map(s=>s.trim()).filter(Boolean)));
+  }
+
   // ----- Persistence -----
   const STORAGE_KEY = 'headsup.customDeck.v1';
   function saveDeck(words){ localStorage.setItem(STORAGE_KEY, JSON.stringify(words)); }
   function loadDeck(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]') } catch{ return [] } }
 
   // ----- Deck helpers -----
-  function parseTextarea(){
-    const lines = els.deckText.value.split(/
-?
-/).map(s=>s.trim()).filter(Boolean);
-    return Array.from(new Set(lines));
-  }
-  function setTextareaFromDeck(arr){ els.deckText.value = arr.join('
-'); }
+  function parseTextarea(){ return normalizeWords(els.deckText.value); }
+  function setTextareaFromDeck(arr){ els.deckText.value = arr.join('\n'); }
 
   // ----- URL import -----
   (function importFromURL(){
@@ -262,16 +257,10 @@ Oscars"></textarea>
   }
 
   function updateScore(){ els.scoreGood.textContent = String(correct.length); els.scoreSkip.textContent = String(skipped.length); }
-
-  function nextWord(){
-    if(drawPile.length===0){ drawPile = shuffle(deck.slice()); }
-    cur = drawPile.pop();
-    els.currentWord.textContent = cur;
-  }
+  function nextWord(){ if(drawPile.length===0){ drawPile = shuffle(deck.slice()); } cur = drawPile.pop(); els.currentWord.textContent = cur; }
 
   function endRound(){
     clearTimeout(timerId); timerId=null;
-    // Summary
     const total = correct.length + penalty*skipped.length;
     els.sumScore.textContent = String(total);
     listInto('sumGood', correct);
@@ -293,9 +282,13 @@ Oscars"></textarea>
     timerId = setTimeout(tick, 100);
   }
 
-  // ----- Touch Zones -----
-  els.zoneRight.onclick = ()=>{ if(!paused){ correct.push(cur); updateScore(); nextWord(); } };
-  els.zoneLeft.onclick  = ()=>{ if(!paused){ skipped.push(cur); updateScore(); nextWord(); } };
+  // ----- Tap Zones -----
+  function vibrate(ms){ if(navigator.vibrate) try{ navigator.vibrate(ms); }catch{} }
+  els.zoneRight.addEventListener('click', ()=>{ if(!paused){ correct.push(cur); updateScore(); nextWord(); vibrate(30); } });
+  els.zoneLeft.addEventListener('click',  ()=>{ if(!paused){ skipped.push(cur); updateScore(); nextWord(); vibrate(15); } });
+  // Low-latency touchstart
+  els.zoneRight.addEventListener('touchstart', (e)=>{ e.preventDefault(); if(!paused){ correct.push(cur); updateScore(); nextWord(); vibrate(30); } }, {passive:false});
+  els.zoneLeft.addEventListener('touchstart',  (e)=>{ e.preventDefault(); if(!paused){ skipped.push(cur); updateScore(); nextWord(); vibrate(15); } }, {passive:false});
 
   // ----- In-game buttons -----
   els.btnEnd.onclick = endRound;
@@ -307,19 +300,39 @@ Oscars"></textarea>
   els.btnBack.onclick = ()=>{ show('panel-setup'); };
 
   // ----- View switcher -----
-  function show(id){
-    ['panel-setup','panel-game','panel-summary'].forEach(k=>{
-      document.getElementById(k).classList.toggle('hidden', k!==id);
-    });
-  }
+  function show(id){ ['panel-setup','panel-game','panel-summary'].forEach(k=>{ document.getElementById(k).classList.toggle('hidden', k!==id); }); }
 
   // ----- Keyboard shortcuts (desktop testing) -----
   window.addEventListener('keydown', (e)=>{
     if(els['panel-game'].classList.contains('hidden')) return;
-    if(e.key==='ArrowRight' || e.key===' '){ els.zoneRight.click(); }
-    if(e.key==='ArrowLeft'){ els.zoneLeft.click(); }
-    if(e.key==='Escape'){ els.btnEnd.click(); }
+    if(e.key==='ArrowRight' || e.key===' '){ correct.push(cur); updateScore(); nextWord(); }
+    if(e.key==='ArrowLeft'){ skipped.push(cur); updateScore(); nextWord(); }
+    if(e.key==='Escape'){ endRound(); }
   });
+
+  // ----- Self-tests (run once; results in console) -----
+  (function selfTests(){
+    const cases = [
+      {name:'LF split',       input:'a\nb\nc',         want:['a','b','c']},
+      {name:'CRLF split',     input:'a\r\nb\r\nc',     want:['a','b','c']},
+      {name:'Keeps empties',  input:'a\n\n b ',       want:['a','',' b ']},
+      {name:'Normalize',      input:'  A\nA\nB\n\n', wantNorm:['A','B']},
+    ];
+    let ok = true;
+    for(const t of cases){
+      const got = splitLines(t.input);
+      if(t.want && (got.length!==t.want.length || got.some((v,i)=>v!==t.want[i]))){
+        ok=false; console.error('❌ splitLines failed:', t.name, {got, want:t.want}); break;
+      }
+      if(t.wantNorm){
+        const gn = normalizeWords(t.input);
+        if(gn.length!==t.wantNorm.length || gn.some((v,i)=>v!==t.wantNorm[i])){
+          ok=false; console.error('❌ normalizeWords failed:', t.name, {got:gn, want:t.wantNorm}); break;
+        }
+      }
+    }
+    console[ok?'log':'error']('Self-tests ' + (ok?'passed ✅':'failed ❌'));
+  })();
 })();
 </script>
 </body>
