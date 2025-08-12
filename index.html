@@ -36,7 +36,7 @@
     .pill{padding:8px 12px;border-radius:999px;border:1px solid #ffffff24;background:#0b1220;color:var(--muted);font-size:14px}
     .muted{color:var(--muted)}
     .big{font-size:48px;line-height:1.1;text-align:center;margin:24px 0}
-    .word{font-size:44px;line-height:1.12;text-align:center;margin:8px 0 12px;font-weight:800;letter-spacing:.3px}
+    .word{font-size:52px;line-height:1.12;text-align:center;margin:8px 0 12px;font-weight:800;letter-spacing:.3px}
     .score{font-size:18px}
     .flex{display:flex;gap:10px;align-items:center}
     .spread{display:flex;justify-content:space-between;align-items:center}
@@ -47,6 +47,15 @@
     .kbd{border:1px solid #ffffff33;border-bottom-width:2px;background:#0b1220;border-radius:8px;padding:3px 8px;font-size:13px}
     .footer{position:fixed;inset:auto 0 0 0;padding:10px 16px;background:linear-gradient( to top, #0b0f17ee, #0b0f1700);backdrop-filter:blur(8px)}
     .link{color:#93c5fd;text-decoration:none}
+
+    /* New 3-column game layout (Left Skip | Middle info + controls | Right Correct) */
+    .gameGrid{display:grid;grid-template-columns:1fr minmax(260px,2fr) 1fr;gap:12px;min-height:70vh}
+    .touchZone{display:flex;align-items:center;justify-content:center;border:1px dashed #ffffff2a;border-radius:18px;background:#0b1220aa;font-size:28px;font-weight:700;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+    .touchZone:active{transform:scale(0.99)}
+    .touchZone.skip{border-color:#f59e0b55}
+    .touchZone.correct{border-color:#16a34a55}
+    .midCol{display:flex;flex-direction:column;gap:10px}
+    .scoreRow{justify-content:center;gap:16px}
   </style>
 </head>
 <body>
@@ -57,7 +66,11 @@
 
       <h2>Deck</h2>
       <div class="grid">
-        <textarea id="deckText" placeholder="e.g. Einstein\nPani Puri\nBlockchain\nSachin Tendulkar\nOscars"></textarea>
+        <textarea id="deckText" placeholder="e.g. Einstein
+Pani Puri
+Blockchain
+Sachin Tendulkar
+Oscars"></textarea>
         <div class="grid g2">
           <button id="btnSample" class="ghost">Load sample</button>
           <button id="btnShuffle" class="ghost">Shuffle</button>
@@ -90,38 +103,36 @@
       <div class="grid">
         <div class="row">
           <button id="btnStart" class="good">Start Round</button>
-          <button id="btnPermission" class="ghost" title="Enable device motion on iOS">Enable Tilt</button>
-          <span class="muted">Tilt down = <b>Correct</b>, Tilt up = <b>Skip</b>. Tap buttons if motion isn't available.</span>
+          <span class="muted">Tap <b>right</b> side = Correct, <b>left</b> side = Skip. No tilt required.</span>
         </div>
       </div>
     </div>
 
     <div class="card hidden" id="panel-game">
-      <div class="spread">
-        <div class="row score">
-          <span>✅ <b id="scoreGood">0</b></span>
-          <span class="muted">&nbsp;|&nbsp;</span>
-          <span>⤼ Skips: <b id="scoreSkip">0</b></span>
+      <div class="gameGrid">
+        <div id="zoneLeft" class="touchZone skip">Skip</div>
+        <div class="midCol">
+          <div class="spread">
+            <div class="row muted"><span class="pill">Time</span> <b id="timeLeft">60</b>s</div>
+            <div class="row score">
+              <span>✅ <b id="scoreGood">0</b></span>
+              <span class="muted">&nbsp;|&nbsp;</span>
+              <span>⤼ Skips: <b id="scoreSkip">0</b></span>
+            </div>
+          </div>
+
+          <div class="word" id="currentWord">—</div>
+
+          <div class="row center">
+            <button id="btnPause" class="ghost">Pause</button>
+            <button id="btnEnd" class="ghost">End</button>
+            <button id="btnSetup" class="ghost">Setup</button>
+          </div>
+
+          <div class="progress" aria-label="time remaining"><i id="bar"></i></div>
         </div>
-        <div class="row muted"><span class="pill">Time</span><span id="timeLeft">60</span>s</div>
+        <div id="zoneRight" class="touchZone correct">Right</div>
       </div>
-
-      <div class="progress" aria-label="time remaining"><i id="bar"></i></div>
-
-      <div class="big muted">Word</div>
-      <div class="word" id="currentWord">—</div>
-
-      <div class="grid g2">
-        <button id="btnCorrect" class="good">Correct (↑ tilt down)</button>
-        <button id="btnSkip" class="warn">Skip (↑ tilt up)</button>
-      </div>
-
-      <div class="row" style="margin-top:10px">
-        <button id="btnPause" class="ghost">Pause</button>
-        <button id="btnEnd" class="ghost">End Round</button>
-      </div>
-
-      <div class="muted" style="margin-top:10px">Tip: Fullscreen on your phone for best experience.</div>
     </div>
 
     <div class="card hidden" id="panel-summary">
@@ -153,7 +164,7 @@
   // ----- State -----
   const els = idMap([
     'panel-setup','panel-game','panel-summary','deckText','btnSample','btnShuffle','btnImport','btnExport','btnShare','btnSave',
-    'roundLen','skipPenalty','btnStart','btnPermission','btnCorrect','btnSkip','btnPause','btnEnd','scoreGood','scoreSkip','currentWord','timeLeft','bar','sumScore','sumGood','sumSkip','btnPlayAgain','btnBack'
+    'roundLen','skipPenalty','btnStart','zoneLeft','zoneRight','btnPause','btnEnd','btnSetup','scoreGood','scoreSkip','currentWord','timeLeft','bar','sumScore','sumGood','sumSkip','btnPlayAgain','btnBack'
   ]);
 
   /** @type {string[]} */
@@ -189,10 +200,13 @@
 
   // ----- Deck helpers -----
   function parseTextarea(){
-    const lines = els.deckText.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+    const lines = els.deckText.value.split(/
+?
+/).map(s=>s.trim()).filter(Boolean);
     return Array.from(new Set(lines));
   }
-  function setTextareaFromDeck(arr){ els.deckText.value = arr.join('\n'); }
+  function setTextareaFromDeck(arr){ els.deckText.value = arr.join('
+'); }
 
   // ----- URL import -----
   (function importFromURL(){
@@ -279,97 +293,18 @@
     timerId = setTimeout(tick, 100);
   }
 
-  // ----- Buttons during game -----
-  els.btnCorrect.onclick = ()=>{ correct.push(cur); updateScore(); nextWord(); };
-  els.btnSkip.onclick = ()=>{ skipped.push(cur); updateScore(); nextWord(); };
+  // ----- Touch Zones -----
+  els.zoneRight.onclick = ()=>{ if(!paused){ correct.push(cur); updateScore(); nextWord(); } };
+  els.zoneLeft.onclick  = ()=>{ if(!paused){ skipped.push(cur); updateScore(); nextWord(); } };
+
+  // ----- In-game buttons -----
   els.btnEnd.onclick = endRound;
   els.btnPause.onclick = ()=>{ paused = !paused; els.btnPause.textContent = paused? 'Resume' : 'Pause'; if(!paused) tick(); };
+  els.btnSetup.onclick = ()=>{ paused=true; show('panel-setup'); if (document.fullscreenElement && document.exitFullscreen) { document.exitFullscreen().catch(()=>{}); } };
 
   // ----- Summary actions -----
   els.btnPlayAgain.onclick = ()=>{ show('panel-game'); roundLength = parseInt(els.roundLen.value,10)||60; deadline = Date.now()+roundLength*1000; correct.length=0; skipped.length=0; updateScore(); drawPile=shuffle(deck.slice()); nextWord(); tick(); };
   els.btnBack.onclick = ()=>{ show('panel-setup'); };
-
-  // ----- Tilt controls -----
-  // Improved logic: requires crossing a threshold AND returning to neutral before next trigger.
-  // Adds a short hold time (HOLD_MS) to avoid firing on sensor noise.
-  let tiltEnabled = false;
-  let tiltState = 'neutral'; // 'neutral' | 'forward' | 'backward'
-  let lastAction = 0;
-  let tiltHoldTimer = null;
-
-  // Tunable thresholds (portrait holding near vertical):
-  const NEUTRAL_MIN = -20, NEUTRAL_MAX = 20;   // must return here to re-arm
-  const FORWARD_TRIP = 48;   // beta > this => Correct
-  const BACKWARD_TRIP = -35; // beta < this => Skip
-  const COOLDOWN_MS = 800;   // minimum time between actions
-  const HOLD_MS = 140;       // must hold beyond threshold for this long
-
-  els.btnPermission.onclick = requestMotionPermission;
-
-  function requestMotionPermission(){
-    if(typeof DeviceMotionEvent === 'undefined' && typeof DeviceOrientationEvent === 'undefined'){
-      toast('Motion not supported. Use buttons.'); return;
-    }
-    if(typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function'){
-      DeviceMotionEvent.requestPermission().then(state=>{
-        if(state==='granted'){ enableTilt(); }
-        else toast('Permission denied');
-      }).catch(()=>toast('Permission flow cancelled'));
-    } else {
-      enableTilt();
-    }
-  }
-
-  function enableTilt(){
-    if(tiltEnabled) { toast('Tilt already enabled'); return }
-    window.addEventListener('deviceorientation', onTilt, true);
-    tiltEnabled = true; toast('Tilt enabled');
-  }
-
-  function onTilt(e){
-    if(!cur || paused || !tiltEnabled) return;
-    const beta = e.beta; // front/back tilt
-    if(beta == null) return;
-
-    const now = Date.now();
-    if(now - lastAction < COOLDOWN_MS) return; // global cooldown
-
-    // If we are not neutral, wait until we come back to neutral zone to re-arm
-    if(tiltState !== 'neutral'){
-      if(beta > NEUTRAL_MIN && beta < NEUTRAL_MAX){
-        tiltState = 'neutral';
-      }
-      return; // ignore until neutral
-    }
-
-    // In neutral: see if we cross a trip threshold AND hold briefly
-    if(beta > FORWARD_TRIP){
-      armHold('forward');
-    } else if(beta < BACKWARD_TRIP){
-      armHold('backward');
-    } else {
-      // inside neutral, clear any pending hold
-      if(tiltHoldTimer){ clearTimeout(tiltHoldTimer); tiltHoldTimer = null; }
-    }
-
-    function armHold(dir){
-      if(tiltHoldTimer) return; // already arming
-      tiltHoldTimer = setTimeout(()=>{
-        tiltHoldTimer = null;
-        // Fire the action, set state so we require neutral before next one
-        lastAction = Date.now();
-        tiltState = dir;
-        if(dir==='forward'){ els.btnCorrect.click(); flash('#052'); }
-        else { els.btnSkip.click(); flash('#520'); }
-      }, HOLD_MS);
-    }
-  }
-
-  function flash(color){
-    const f = document.createElement('div');
-    f.style.cssText = `position:fixed;inset:0;background:${color};opacity:0.4;pointer-events:none;transition:opacity .3s`; document.body.appendChild(f);
-    setTimeout(()=>{ f.style.opacity='0'; setTimeout(()=>f.remove(),300); },120);
-  }
 
   // ----- View switcher -----
   function show(id){
@@ -380,9 +315,9 @@
 
   // ----- Keyboard shortcuts (desktop testing) -----
   window.addEventListener('keydown', (e)=>{
-    if(els.panel-game.classList.contains('hidden')) return;
-    if(e.key==='ArrowRight' || e.key===' '){ els.btnCorrect.click(); }
-    if(e.key==='ArrowLeft'){ els.btnSkip.click(); }
+    if(els['panel-game'].classList.contains('hidden')) return;
+    if(e.key==='ArrowRight' || e.key===' '){ els.zoneRight.click(); }
+    if(e.key==='ArrowLeft'){ els.zoneLeft.click(); }
     if(e.key==='Escape'){ els.btnEnd.click(); }
   });
 })();
