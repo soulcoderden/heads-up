@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <title>Heads Up – Custom Deck</title>
+  <meta name="description" content="Lightweight Heads Up-style game. Paste your own words, play on any phone." />
+  <style>
+    :root{
+      --bg:#0f172a;         /* slate-900 */
+      --panel:#111827cc;    /* gray-900/80 */
+      --ink:#e5e7eb;        /* gray-200 */
+      --muted:#9ca3af;      /* gray-400 */
+      --accent:#22c55e;     /* green-500 */
+      --accent-2:#3b82f6;   /* blue-500 */
+      --warn:#f59e0b;       /* amber-500 */
+      --danger:#ef4444;     /* red-500 */
+    }
+    html,body{height:100%;margin:0;background:radial-gradient(1200px 600px at 50% -10%, #1f2937, var(--bg));color:var(--ink);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,Apple Color Emoji,Segoe UI Emoji;}
+    .wrap{max-width:920px;margin:0 auto;padding:16px 16px 80px;}
+    .card{background:var(--panel);backdrop-filter:blur(8px);border:1px solid #ffffff12;border-radius:24px;box-shadow:0 10px 30px #0006;padding:18px;}
+    h1{font-size:28px;margin:6px 0 12px}
+    h2{font-size:18px;margin:18px 0 8px;color:var(--muted)}
+    .grid{display:grid;gap:12px}
+    .g2{grid-template-columns:1fr 1fr}
+    @media (max-width:720px){.g2{grid-template-columns:1fr}}
+    textarea, input, select{width:100%;background:#0b1220;border:1px solid #ffffff1f;color:var(--ink);padding:12px 14px;border-radius:14px;font-size:16px}
+    textarea{min-height:160px;resize:vertical}
+    button{appearance:none;border:1px solid #ffffff22;background:#0b1325;color:var(--ink);padding:12px 14px;border-radius:14px;font-size:16px;cursor:pointer}
+    button.primary{background:linear-gradient(135deg,var(--accent-2),#22d3ee);border-color:transparent;color:white;font-weight:600}
+    button.good{background:linear-gradient(135deg,#16a34a,var(--accent));border-color:transparent;color:white;font-weight:600}
+    button.warn{background:linear-gradient(135deg,#f59e0b,#f97316);border-color:transparent;color:#141414;font-weight:700}
+    button.ghost{background:#0b1220}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .pill{padding:8px 12px;border-radius:999px;border:1px solid #ffffff24;background:#0b1220;color:var(--muted);font-size:14px}
+    .muted{color:var(--muted)}
+    .big{font-size:48px;line-height:1.1;text-align:center;margin:24px 0}
+    .word{font-size:44px;line-height:1.12;text-align:center;margin:8px 0 12px;font-weight:800;letter-spacing:.3px}
+    .score{font-size:18px}
+    .flex{display:flex;gap:10px;align-items:center}
+    .spread{display:flex;justify-content:space-between;align-items:center}
+    .center{display:flex;justify-content:center;align-items:center}
+    .hidden{display:none !important}
+    .progress{height:10px;border-radius:999px;background:#ffffff1a;overflow:hidden}
+    .progress>i{display:block;height:100%;background:linear-gradient(90deg,#22d3ee,var(--accent-2));width:100%}
+    .kbd{border:1px solid #ffffff33;border-bottom-width:2px;background:#0b1220;border-radius:8px;padding:3px 8px;font-size:13px}
+    .footer{position:fixed;inset:auto 0 0 0;padding:10px 16px;background:linear-gradient( to top, #0b0f17ee, #0b0f1700);backdrop-filter:blur(8px)}
+    .link{color:#93c5fd;text-decoration:none}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card" id="panel-setup">
+      <h1>Heads Up — Custom Deck</h1>
+      <div class="muted">Paste your words (one per line), or import JSON. Works offline in your browser.</div>
+
+      <h2>Deck</h2>
+      <div class="grid">
+        <textarea id="deckText" placeholder="e.g. Einstein\nPani Puri\nBlockchain\nSachin Tendulkar\nOscars"></textarea>
+        <div class="grid g2">
+          <button id="btnSample" class="ghost">Load sample</button>
+          <button id="btnShuffle" class="ghost">Shuffle</button>
+          <button id="btnImport" class="ghost">Import JSON</button>
+          <button id="btnExport" class="ghost">Export JSON</button>
+          <button id="btnShare" class="ghost">Share deck link</button>
+          <button id="btnSave" class="primary">Save deck</button>
+        </div>
+      </div>
+
+      <h2>Round Settings</h2>
+      <div class="grid g2">
+        <label class="row"> <span class="pill">Round length</span>
+          <select id="roundLen">
+            <option value="45">45 sec</option>
+            <option value="60" selected>60 sec</option>
+            <option value="90">90 sec</option>
+            <option value="120">120 sec</option>
+          </select>
+        </label>
+        <label class="row"> <span class="pill">Skip penalty</span>
+          <select id="skipPenalty">
+            <option value="0" selected>0 points</option>
+            <option value="-1">-1 point</option>
+          </select>
+        </label>
+      </div>
+
+      <h2>Controls</h2>
+      <div class="grid">
+        <div class="row">
+          <button id="btnStart" class="good">Start Round</button>
+          <button id="btnPermission" class="ghost" title="Enable device motion on iOS">Enable Tilt</button>
+          <span class="muted">Tilt down = <b>Correct</b>, Tilt up = <b>Skip</b>. Tap buttons if motion isn't available.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card hidden" id="panel-game">
+      <div class="spread">
+        <div class="row score">
+          <span>✅ <b id="scoreGood">0</b></span>
+          <span class="muted">&nbsp;|&nbsp;</span>
+          <span>⤼ Skips: <b id="scoreSkip">0</b></span>
+        </div>
+        <div class="row muted"><span class="pill">Time</span><span id="timeLeft">60</span>s</div>
+      </div>
+
+      <div class="progress" aria-label="time remaining"><i id="bar"></i></div>
+
+      <div class="big muted">Word</div>
+      <div class="word" id="currentWord">—</div>
+
+      <div class="grid g2">
+        <button id="btnCorrect" class="good">Correct (↑ tilt down)</button>
+        <button id="btnSkip" class="warn">Skip (↑ tilt up)</button>
+      </div>
+
+      <div class="row" style="margin-top:10px">
+        <button id="btnPause" class="ghost">Pause</button>
+        <button id="btnEnd" class="ghost">End Round</button>
+      </div>
+
+      <div class="muted" style="margin-top:10px">Tip: Fullscreen on your phone for best experience.</div>
+    </div>
+
+    <div class="card hidden" id="panel-summary">
+      <h2>Round Summary</h2>
+      <div class="row"><span class="pill">Score</span> <b id="sumScore">0</b></div>
+      <div class="grid g2" style="margin-top:10px">
+        <div>
+          <div class="muted">Correct</div>
+          <ul id="sumGood"></ul>
+        </div>
+        <div>
+          <div class="muted">Skipped</div>
+          <ul id="sumSkip"></ul>
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button id="btnPlayAgain" class="good">Play Again</button>
+        <button id="btnBack" class="ghost">Back to Setup</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer muted center">
+    <div>Made for quick custom play. Data stays in your browser.</div>
+  </div>
+
+<script>
+(function(){
+  // ----- State -----
+  const els = idMap([
+    'panel-setup','panel-game','panel-summary','deckText','btnSample','btnShuffle','btnImport','btnExport','btnShare','btnSave',
+    'roundLen','skipPenalty','btnStart','btnPermission','btnCorrect','btnSkip','btnPause','btnEnd','scoreGood','scoreSkip','currentWord','timeLeft','bar','sumScore','sumGood','sumSkip','btnPlayAgain','btnBack'
+  ]);
+
+  /** @type {string[]} */
+  let deck = [];
+  let drawPile = [];
+  let roundLength = 60;
+  let penalty = 0;
+  let timerId = null;
+  let deadline = 0;
+  let paused = false;
+  let cur = '';
+  const correct = [];
+  const skipped = [];
+
+  // ----- Utilities -----
+  function idMap(keys){ const o={}; keys.forEach(k=>o[k]=document.getElementById(k)); return o; }
+  const rand = (n)=>Math.floor(Math.random()*n);
+  const shuffle = (arr)=>{ for(let i=arr.length-1;i>0;i--){ const j=rand(i+1); [arr[i],arr[j]]=[arr[j],arr[i]] } return arr };
+  const b64 = {
+    enc: (obj)=> btoa(unescape(encodeURIComponent(JSON.stringify(obj)))).replace(/=+$/,'') ,
+    dec: (s)=> JSON.parse(decodeURIComponent(escape(atob(s))))
+  };
+  function toast(msg){
+    const t = document.createElement('div');
+    t.textContent = msg; t.style.cssText = 'position:fixed;left:50%;bottom:64px;transform:translateX(-50%);background:#111827;border:1px solid #ffffff33;padding:10px 14px;border-radius:12px;color:#e5e7eb;box-shadow:0 10px 30px #0009;z-index:1000';
+    document.body.appendChild(t); setTimeout(()=>t.remove(),2200);
+  }
+
+  // ----- Persistence -----
+  const STORAGE_KEY = 'headsup.customDeck.v1';
+  function saveDeck(words){ localStorage.setItem(STORAGE_KEY, JSON.stringify(words)); }
+  function loadDeck(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]') } catch{ return [] } }
+
+  // ----- Deck helpers -----
+  function parseTextarea(){
+    const lines = els.deckText.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+    return Array.from(new Set(lines));
+  }
+  function setTextareaFromDeck(arr){ els.deckText.value = arr.join('\n'); }
+
+  // ----- URL import -----
+  (function importFromURL(){
+    const u = new URL(location.href);
+    const q = u.searchParams.get('deck');
+    if(q){
+      try{ deck = b64.dec(q); setTextareaFromDeck(deck); toast('Loaded deck from link'); }
+      catch{ /* ignore */ }
+    } else {
+      const saved = loadDeck(); if(saved.length){ deck = saved; setTextareaFromDeck(deck); }
+    }
+  })();
+
+  // ----- Sample deck -----
+  const SAMPLE = [
+    'Albert Einstein','Pani Puri','Sachin Tendulkar','Blockchain','Photosynthesis','The Oscars','The Godfather','Mount Everest','Mona Lisa','Harry Potter',
+    'Diwali','Virat Kohli','Machine Learning','Shah Rukh Khan','Bangalore Traffic','Coconut Water','Dosa','Cricket World Cup','Meditation','Yoga'
+  ];
+
+  // ----- Setup actions -----
+  els.btnSample.onclick = ()=>{ setTextareaFromDeck(SAMPLE); toast('Sample deck loaded'); };
+  els.btnShuffle.onclick = ()=>{ const arr=parseTextarea(); shuffle(arr); setTextareaFromDeck(arr); };
+  els.btnImport.onclick = ()=>{
+    const s = prompt('Paste deck JSON (e.g. ["Word1","Word2"])');
+    if(!s) return; try{ const arr = JSON.parse(s); if(Array.isArray(arr)){ setTextareaFromDeck(arr); toast('Imported JSON'); } }
+    catch{ alert('Invalid JSON'); }
+  };
+  els.btnExport.onclick = ()=>{ const arr=parseTextarea(); navigator.clipboard.writeText(JSON.stringify(arr,null,0)); toast('Copied JSON to clipboard'); };
+  els.btnShare.onclick = ()=>{
+    const arr=parseTextarea(); const url = new URL(location.href); url.searchParams.set('deck', b64.enc(arr));
+    const link = url.toString();
+    if(navigator.share){ navigator.share({title:'Heads Up Deck',url:link}).catch(()=>navigator.clipboard.writeText(link).then(()=>toast('Link copied'))); }
+    else { navigator.clipboard.writeText(link).then(()=>toast('Link copied to clipboard')); }
+  };
+  els.btnSave.onclick = ()=>{ deck=parseTextarea(); saveDeck(deck); toast('Deck saved to this device'); };
+
+  // ----- Start Round -----
+  els.btnStart.onclick = startRound;
+  function startRound(){
+    deck = parseTextarea();
+    if(deck.length < 2){ alert('Please add at least 2 words.'); return }
+    roundLength = parseInt(els.roundLen.value,10)||60;
+    penalty = parseInt(els.skipPenalty.value,10)||0;
+    drawPile = shuffle(deck.slice());
+    correct.length = 0; skipped.length = 0; updateScore();
+    els.timeLeft.textContent = String(roundLength);
+    show('panel-game');
+    paused = false; cur = '';
+    nextWord();
+    deadline = Date.now() + roundLength*1000;
+    tick();
+    if (document.documentElement.requestFullscreen) { document.documentElement.requestFullscreen().catch(()=>{}); }
+  }
+
+  function updateScore(){ els.scoreGood.textContent = String(correct.length); els.scoreSkip.textContent = String(skipped.length); }
+
+  function nextWord(){
+    if(drawPile.length===0){ drawPile = shuffle(deck.slice()); }
+    cur = drawPile.pop();
+    els.currentWord.textContent = cur;
+  }
+
+  function endRound(){
+    clearTimeout(timerId); timerId=null;
+    // Summary
+    const total = correct.length + penalty*skipped.length;
+    els.sumScore.textContent = String(total);
+    listInto('sumGood', correct);
+    listInto('sumSkip', skipped);
+    show('panel-summary');
+    if (document.fullscreenElement && document.exitFullscreen) { document.exitFullscreen().catch(()=>{}); }
+  }
+
+  function listInto(id, arr){ const ul = els[id]; ul.innerHTML=''; arr.forEach(w=>{ const li=document.createElement('li'); li.textContent=w; ul.appendChild(li); }); }
+
+  function tick(){
+    if(paused){ timerId = setTimeout(tick, 200); return }
+    const remain = Math.max(0, deadline - Date.now());
+    const secs = Math.ceil(remain/1000);
+    els.timeLeft.textContent = String(secs);
+    const pct = Math.max(0, Math.min(1, remain/(roundLength*1000)));
+    els.bar.style.width = (pct*100).toFixed(1)+'%';
+    if(remain<=0){ endRound(); return }
+    timerId = setTimeout(tick, 100);
+  }
+
+  // ----- Buttons during game -----
+  els.btnCorrect.onclick = ()=>{ correct.push(cur); updateScore(); nextWord(); };
+  els.btnSkip.onclick = ()=>{ skipped.push(cur); updateScore(); nextWord(); };
+  els.btnEnd.onclick = endRound;
+  els.btnPause.onclick = ()=>{ paused = !paused; els.btnPause.textContent = paused? 'Resume' : 'Pause'; if(!paused) tick(); };
+
+  // ----- Summary actions -----
+  els.btnPlayAgain.onclick = ()=>{ show('panel-game'); roundLength = parseInt(els.roundLen.value,10)||60; deadline = Date.now()+roundLength*1000; correct.length=0; skipped.length=0; updateScore(); drawPile=shuffle(deck.slice()); nextWord(); tick(); };
+  els.btnBack.onclick = ()=>{ show('panel-setup'); };
+
+  // ----- Tilt controls -----
+  let lastTilt = 0;  // debounce
+  let tiltEnabled = false;
+  els.btnPermission.onclick = requestMotionPermission;
+
+  function requestMotionPermission(){
+    if(typeof DeviceMotionEvent === 'undefined'){ toast('Motion not supported. Use buttons.'); return }
+    // iOS requires permission
+    if(typeof DeviceMotionEvent.requestPermission === 'function'){
+      DeviceMotionEvent.requestPermission().then(state=>{
+        if(state==='granted'){ enableTilt(); }
+        else toast('Permission denied');
+      }).catch(()=>toast('Permission flow cancelled'));
+    } else {
+      enableTilt();
+    }
+  }
+  function enableTilt(){
+    if(tiltEnabled) { toast('Tilt already enabled'); return }
+    window.addEventListener('deviceorientation', onTilt, true);
+    tiltEnabled = true; toast('Tilt enabled');
+  }
+  function onTilt(e){
+    if(!cur || paused) return;
+    const beta = e.beta; // front/back tilt: -180..180
+    const now = Date.now();
+    if(now - lastTilt < 800) return; // debounce 0.8s
+    if(beta == null) return;
+    if(beta > 45){ // phone tilted forward (top towards floor)
+      lastTilt = now; els.btnCorrect.click(); flash('#052');
+    } else if(beta < -30){ // phone tilted backward (top towards sky)
+      lastTilt = now; els.btnSkip.click(); flash('#520');
+    }
+  }
+  function flash(color){
+    const f = document.createElement('div');
+    f.style.cssText = `position:fixed;inset:0;background:${color};opacity:0.4;pointer-events:none;transition:opacity .3s`; document.body.appendChild(f);
+    setTimeout(()=>{ f.style.opacity='0'; setTimeout(()=>f.remove(),300); },120);
+  }
+
+  // ----- View switcher -----
+  function show(id){
+    ['panel-setup','panel-game','panel-summary'].forEach(k=>{
+      document.getElementById(k).classList.toggle('hidden', k!==id);
+    });
+  }
+
+  // ----- Keyboard shortcuts (desktop testing) -----
+  window.addEventListener('keydown', (e)=>{
+    if(els.panel-game.classList.contains('hidden')) return;
+    if(e.key==='ArrowRight' || e.key===' '){ els.btnCorrect.click(); }
+    if(e.key==='ArrowLeft'){ els.btnSkip.click(); }
+    if(e.key==='Escape'){ els.btnEnd.click(); }
+  });
+})();
+</script>
+</body>
+</html>
