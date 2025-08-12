@@ -290,14 +290,27 @@
   els.btnBack.onclick = ()=>{ show('panel-setup'); };
 
   // ----- Tilt controls -----
-  let lastTilt = 0;  // debounce
+  // Improved logic: requires crossing a threshold AND returning to neutral before next trigger.
+  // Adds a short hold time (HOLD_MS) to avoid firing on sensor noise.
   let tiltEnabled = false;
+  let tiltState = 'neutral'; // 'neutral' | 'forward' | 'backward'
+  let lastAction = 0;
+  let tiltHoldTimer = null;
+
+  // Tunable thresholds (portrait holding near vertical):
+  const NEUTRAL_MIN = -20, NEUTRAL_MAX = 20;   // must return here to re-arm
+  const FORWARD_TRIP = 48;   // beta > this => Correct
+  const BACKWARD_TRIP = -35; // beta < this => Skip
+  const COOLDOWN_MS = 800;   // minimum time between actions
+  const HOLD_MS = 140;       // must hold beyond threshold for this long
+
   els.btnPermission.onclick = requestMotionPermission;
 
   function requestMotionPermission(){
-    if(typeof DeviceMotionEvent === 'undefined'){ toast('Motion not supported. Use buttons.'); return }
-    // iOS requires permission
-    if(typeof DeviceMotionEvent.requestPermission === 'function'){
+    if(typeof DeviceMotionEvent === 'undefined' && typeof DeviceOrientationEvent === 'undefined'){
+      toast('Motion not supported. Use buttons.'); return;
+    }
+    if(typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function'){
       DeviceMotionEvent.requestPermission().then(state=>{
         if(state==='granted'){ enableTilt(); }
         else toast('Permission denied');
@@ -306,23 +319,52 @@
       enableTilt();
     }
   }
+
   function enableTilt(){
     if(tiltEnabled) { toast('Tilt already enabled'); return }
     window.addEventListener('deviceorientation', onTilt, true);
     tiltEnabled = true; toast('Tilt enabled');
   }
+
   function onTilt(e){
-    if(!cur || paused) return;
-    const beta = e.beta; // front/back tilt: -180..180
-    const now = Date.now();
-    if(now - lastTilt < 800) return; // debounce 0.8s
+    if(!cur || paused || !tiltEnabled) return;
+    const beta = e.beta; // front/back tilt
     if(beta == null) return;
-    if(beta > 45){ // phone tilted forward (top towards floor)
-      lastTilt = now; els.btnCorrect.click(); flash('#052');
-    } else if(beta < -30){ // phone tilted backward (top towards sky)
-      lastTilt = now; els.btnSkip.click(); flash('#520');
+
+    const now = Date.now();
+    if(now - lastAction < COOLDOWN_MS) return; // global cooldown
+
+    // If we are not neutral, wait until we come back to neutral zone to re-arm
+    if(tiltState !== 'neutral'){
+      if(beta > NEUTRAL_MIN && beta < NEUTRAL_MAX){
+        tiltState = 'neutral';
+      }
+      return; // ignore until neutral
+    }
+
+    // In neutral: see if we cross a trip threshold AND hold briefly
+    if(beta > FORWARD_TRIP){
+      armHold('forward');
+    } else if(beta < BACKWARD_TRIP){
+      armHold('backward');
+    } else {
+      // inside neutral, clear any pending hold
+      if(tiltHoldTimer){ clearTimeout(tiltHoldTimer); tiltHoldTimer = null; }
+    }
+
+    function armHold(dir){
+      if(tiltHoldTimer) return; // already arming
+      tiltHoldTimer = setTimeout(()=>{
+        tiltHoldTimer = null;
+        // Fire the action, set state so we require neutral before next one
+        lastAction = Date.now();
+        tiltState = dir;
+        if(dir==='forward'){ els.btnCorrect.click(); flash('#052'); }
+        else { els.btnSkip.click(); flash('#520'); }
+      }, HOLD_MS);
     }
   }
+
   function flash(color){
     const f = document.createElement('div');
     f.style.cssText = `position:fixed;inset:0;background:${color};opacity:0.4;pointer-events:none;transition:opacity .3s`; document.body.appendChild(f);
